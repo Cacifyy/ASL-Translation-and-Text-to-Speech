@@ -7,3 +7,4 @@ pyttsx3
 scikit-learn
 matplotlib
 tqdm
+mediapipe==0.10.5
