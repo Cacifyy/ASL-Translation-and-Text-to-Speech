@@ -8,7 +8,7 @@ import torch
 from torchvision import models
 
 
-def load_model(model_path: str, num_classes: int = 26, device: str = None):
+def load_model(model_path: str, num_classes: int = 29, device: str = None):
     """
     Load the trained model and set it to evaluation mode.
 

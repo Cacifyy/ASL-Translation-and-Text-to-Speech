@@ -8,10 +8,10 @@ and optional text-to-speech output.
 import cv2
 import time
 
-from src.webcam.camera import open_camera, read_frame, release_camera
+from src.utils.camera import open_camera, read_frame, release_camera
 from src.utils.tts import init_tts, speak_text
-from src.models.model_loader import load_model
-from src.inference.predict import predict_from_frame
+from model_loader import load_model
+from predict import predict_from_frame
 
 
 def main():
@@ -19,7 +19,7 @@ def main():
     # Config
     # -----------------------------
     camera_index = 0
-    model_path = "checkpoints/best_model.pth"
+    model_path = "models/resnet18_finetune_aug/best_model.pt"
     speak_predictions = True
 
     # To avoid repeating speech every frame, we keep track of the last

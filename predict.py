@@ -6,8 +6,8 @@ Prediction utilities for live webcam frames.
 
 import torch
 
-from src.inference.preprocess import preprocess_frame
-from src.inference.labels import CLASS_NAMES
+from preprocess import preprocess_frame
+from labels import CLASS_NAMES
 
 
 def predict_from_frame(model, frame, device: str = None):
