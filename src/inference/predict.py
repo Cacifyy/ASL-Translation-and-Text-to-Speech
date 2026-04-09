@@ -6,21 +6,11 @@ Prediction utilities for live webcam frames.
 
 import torch
 
-from preprocess import preprocess_frame
+from src.inference.preprocess import preprocess_frame
 from labels import CLASS_NAMES
 
 
 def predict_from_frame(model, frame, device: str = None):
-    """
-    Run inference on a single OpenCV frame.
-
-    Returns
-    -------
-    predicted_label : str
-        Predicted ASL class name.
-    confidence : float
-        Softmax confidence for the predicted class.
-    """
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 

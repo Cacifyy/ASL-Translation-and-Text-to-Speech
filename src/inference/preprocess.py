@@ -10,9 +10,6 @@ from torchvision import transforms
 
 
 def build_transform():
-    """
-    Build the same preprocessing pipeline used during training.
-    """
     return transforms.Compose([
         transforms.ToPILImage(),
         transforms.Resize((224, 224)),
@@ -30,10 +27,9 @@ def preprocess_frame(frame):
     """
     transform = build_transform()
 
-    # OpenCV reads in BGR; most deep learning image pipelines expect RGB
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
     tensor = transform(rgb_frame)
-    tensor = tensor.unsqueeze(0)  # Add batch dimension: [1, C, H, W]
+    tensor = tensor.unsqueeze(0)
 
     return tensor

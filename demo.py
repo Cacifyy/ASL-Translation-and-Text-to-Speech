@@ -4,22 +4,20 @@ demo.py
 Run a live ASL recognition demo using webcam input, MediaPipe hand detection,
 model inference, and optional text-to-speech output.
 
-Hand landmarks are drawn on screen so you can see exactly what the model
-is looking at. Inference runs on the cropped hand region, not the full frame.
+Controls:
+SPACE: capture the current frame and predict
+Q: quit
 """
 
 import cv2
-import time
-import numpy as np
 import mediapipe as mp
 
 from src.utils.camera import open_camera, read_frame, release_camera
 from src.utils.tts import init_tts, speak_text
 from model_loader import load_model
-from predict import predict_from_frame
+from src.inference.predict import predict_from_frame
 
 
-# MediaPipe hand solution
 _mp_hands = mp.solutions.hands
 _mp_drawing = mp.solutions.drawing_utils
 _mp_drawing_styles = mp.solutions.drawing_styles
@@ -27,10 +25,7 @@ _mp_drawing_styles = mp.solutions.drawing_styles
 
 def extract_hand_crop(frame, hand_landmarks, padding: float = 0.2):
     """
-    Crop the frame to a bounding box around the detected hand landmarks,
-    with a percentage-based padding on each side.
-
-    Returns the cropped BGR image, or None if the crop is invalid.
+    Crop the frame to a bounding box around the detected hand landmarks.
     """
     h, w = frame.shape[:2]
     xs = [lm.x for lm in hand_landmarks.landmark]
@@ -47,33 +42,23 @@ def extract_hand_crop(frame, hand_landmarks, padding: float = 0.2):
     return frame[y_min:y_max, x_min:x_max], (x_min, y_min, x_max, y_max)
 
 
-def draw_hand_box(frame, bbox, label, confidence):
+def draw_result(frame, bbox, label, confidence):
     """Draw bounding box and prediction label around the detected hand."""
     x_min, y_min, x_max, y_max = bbox
     cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 200, 255), 2)
-    text = f"{label} ({confidence:.2f})"
     cv2.putText(
-        frame, text,
+        frame, f"{label} ({confidence:.2f})",
         (x_min, max(y_min - 10, 20)),
         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 200, 255), 2, cv2.LINE_AA
     )
 
 
 def main():
-    # -----------------------------
-    # Config
-    # -----------------------------
     camera_index = 0
     model_path = "models/resnet18_finetune_aug/best_model.pt"
     speak_predictions = True
 
-    speak_cooldown_seconds = 2.0
-    last_spoken_label = None
-    last_spoken_time = 0.0
-
-    # -----------------------------
-    # Initialize model + TTS + camera + MediaPipe
-    # -----------------------------
+    # Initialize best model, TTS, camera, and MediaPipe
     print("Loading model...")
     model = load_model(model_path)
 
@@ -83,10 +68,7 @@ def main():
     print("Opening camera...")
     cap = open_camera(camera_index)
 
-    print("Starting demo. Press 'q' to quit.")
-    print("  - Hand landmarks are drawn in real time.")
-    print("  - Inference runs on the cropped hand region.")
-    print("  - If no hand is detected, the label shows 'no hand'.")
+    print("Ready.  SPACE = capture & predict   Q = quit")
 
     hands = _mp_hands.Hands(
         static_image_mode=False,
@@ -95,6 +77,11 @@ def main():
         min_tracking_confidence=0.5,
     )
 
+    # Last prediction stays on screen until the next capture
+    last_label = None
+    last_confidence = 0.0
+    last_bbox = None
+
     try:
         while True:
             frame = read_frame(cap)
@@ -102,17 +89,12 @@ def main():
                 print("Warning: could not read frame from webcam.")
                 continue
 
-            # MediaPipe expects RGB
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = hands.process(rgb)
 
-            predicted_label = "no hand"
-            confidence = 0.0
-
+            hand_landmarks = None
             if results.multi_hand_landmarks:
                 hand_landmarks = results.multi_hand_landmarks[0]
-
-                # Draw the 21-point skeleton on the frame
                 _mp_drawing.draw_landmarks(
                     frame,
                     hand_landmarks,
@@ -120,36 +102,48 @@ def main():
                     _mp_drawing_styles.get_default_hand_landmarks_style(),
                     _mp_drawing_styles.get_default_hand_connections_style(),
                 )
-
-                # Crop to the hand and run inference on that region only
-                hand_crop, bbox = extract_hand_crop(frame, hand_landmarks, padding=0.2)
-                if hand_crop is not None:
-                    predicted_label, confidence = predict_from_frame(model, hand_crop)
-                    draw_hand_box(frame, bbox, predicted_label, confidence)
             else:
-                # No hand found — show a message so the user knows
                 cv2.putText(
                     frame, "No hand detected",
                     (20, 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA
                 )
 
+            if last_label is not None and last_bbox is not None:
+                draw_result(frame, last_bbox, last_label, last_confidence)
+
+            h = frame.shape[0]
+            cv2.putText(
+                frame, "SPACE: predict   Q: quit",
+                (10, h - 15),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1, cv2.LINE_AA
+            )
+
             cv2.imshow("ASL Recognition Demo", frame)
 
-            # Speak the prediction if new and cooldown has passed
-            current_time = time.time()
-            if (
-                speak_predictions
-                and predicted_label not in ("no hand",)
-                and predicted_label != last_spoken_label
-                and (current_time - last_spoken_time) >= speak_cooldown_seconds
-            ):
-                speak_text(tts_engine, predicted_label)
-                last_spoken_label = predicted_label
-                last_spoken_time = current_time
+            key = cv2.waitKey(1) & 0xFF
 
-            if cv2.waitKey(1) & 0xFF == ord("q"):
+            if key == ord("q"):
                 break
+
+            if key == ord(" "):
+                if hand_landmarks is None:
+                    print("No hand detected — move your hand into frame and try again.")
+                    continue
+
+                hand_crop, bbox = extract_hand_crop(frame, hand_landmarks, padding=0.2)
+                if hand_crop is None:
+                    print("Could not crop hand region.")
+                    continue
+
+                label, confidence = predict_from_frame(model, hand_crop)
+                last_label = label
+                last_confidence = confidence
+                last_bbox = bbox
+                print(f"Predicted: {label}  ({confidence:.2f})")
+
+                if speak_predictions:
+                    speak_text(tts_engine, label)
 
     finally:
         hands.close()

@@ -23,23 +23,7 @@ class ResNet18ASL(nn.Module):
 
 
 def load_model(model_path: str, num_classes: int = 29, device: str = None):
-    """
-    Load the trained model and set it to evaluation mode.
-
-    Parameters
-    ----------
-    model_path : str
-        Path to the saved model weights.
-    num_classes : int
-        Number of output classes in the classifier.
-    device : str
-        Device to load model onto ("cpu" or "cuda").
-
-    Returns
-    -------
-    model : torch.nn.Module
-        Loaded model ready for inference.
-    """
+    
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
